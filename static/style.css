@@ -1,37 +1,293 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
 body {
-    font-family: monospace;
+    font-family: 'Segoe UI', Tahoma, sans-serif;
     background: #111;
     color: #eee;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+    border: 12px solid #333;
+}
+
+/* Alliance solid border */
+body.red-alliance {
+    border-color: #d32f2f;
+}
+
+body.blue-alliance {
+    border-color: #1976d2;
+}
+
+body.disconnected {
+    border-color: #555;
+}
+
+body.match-ended {
+    border-color: #333;
+}
+
+/* Alliance fade glow - only on main display area, not top bar */
+#main-display::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    z-index: 100;
+}
+
+body.red-alliance #main-display::before {
+    box-shadow: 
+        inset 0 0 80px 30px rgba(211, 47, 47, 0.5),
+        inset 0 0 150px 60px rgba(211, 47, 47, 0.2);
+}
+
+body.blue-alliance #main-display::before {
+    box-shadow: 
+        inset 0 0 80px 30px rgba(25, 118, 210, 0.5),
+        inset 0 0 150px 60px rgba(25, 118, 210, 0.2);
+}
+
+body.disconnected #main-display::before {
+    box-shadow: inset 0 0 40px 10px rgba(85, 85, 85, 0.3);
+}
+
+body.match-ended #main-display::before {
+    box-shadow: none;
+}
+
+/* Top Info Bar */
+#info-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    background: #1a1a1a;
+    border-bottom: 2px solid #333;
+    flex-shrink: 0;
+    z-index: 50;
+}
+
+.info-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.info-item .label {
+    color: #888;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+}
+
+.info-item span:last-child {
+    font-weight: bold;
+    font-size: 1rem;
+}
+
+/* Status dots */
+.status-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.status-dot.connected {
+    background: #4caf50;
+    box-shadow: 0 0 8px #4caf50;
+}
+
+.status-dot.disconnected {
+    background: #f44336;
+}
+
+/* Global Timer at top of main area */
+#global-timer {
+    position: absolute;
+    top: 5rem;  /* Moved down to accommodate larger next hub indicator */
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 5rem;  /* Increased from 3.5rem */
+    font-family: 'Consolas', monospace;
+    font-weight: bold;
+    color: rgba(255,255,255,0.95);
+    z-index: 20;
+    text-shadow: 0 0 25px rgba(0,0,0,0.9), 0 0 50px rgba(255,255,255,0.3);
+}
+
+/* Main Display */
+#main-display {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
     padding: 2rem;
+    padding-bottom: 4rem; /* Leave space for DS at bottom */
+    position: relative;
 }
 
-h1 {
-    color: #0f0;
+/* Phase Info */
+#phase-info {
+    text-align: center;
+    z-index: 10;
+    position: absolute;
+    top: 45%;
+    left: 50%;
+    transform: translate(-50%, -50%);
 }
 
-#status {
-    margin-bottom: 1rem;
-    padding: 0.5rem;
-    background: #222;
-    border-left: 3px solid #f00;
+#current-phase {
+    font-size: 4.5rem;  /* Increased from 3rem */
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.3rem;  /* Increased spacing */
+    text-shadow: 0 0 30px rgba(255,255,255,0.4);
+    margin-bottom: 1rem;  /* Increased margin */
 }
 
-#status.connected {
-    border-left-color: #0f0;
+#phase-timer {
+    font-size: 20rem;  /* Increased from 16rem */
+    font-weight: bold;
+    font-family: 'Consolas', monospace;
+    text-shadow: 0 0 60px rgba(255,255,255,0.6), 0 0 120px rgba(255,255,255,0.3);
+    line-height: 1;
 }
 
-table {
-    border-collapse: collapse;
+#next-phase {
+    font-size: 2.5rem;  /* Increased from 1.5rem */
+    color: rgba(255,255,255,0.7);
+    font-style: italic;
+    margin-top: 1rem;  /* Increased margin */
+    text-shadow: 0 0 20px rgba(255,255,255,0.3);
+}
+
+/* Hub Display */
+#hub-display {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+}
+
+#hub-bar {
     width: 100%;
-    max-width: 600px;
+    height: 100%;
+    position: relative;
+    overflow: hidden;
 }
 
-th, td {
-    text-align: left;
-    padding: 0.5rem;
-    border: 1px solid #333;
+#hub-fill {
+    height: 100%;
+    transition: width 0.1s linear;
+    position: absolute;
+    right: 0;
+    top: 0;
 }
 
-th {
+/* Gray overlay that sweeps from left */
+#hub-gray {
+    height: 100%;
     background: #222;
+    position: absolute;
+    left: 0;
+    top: 0;
+    transition: width 0.1s linear;
+    z-index: 1;
+}
+
+/* Next Hub Indicator - horizontal bar at top showing next hub color */
+#next-hub-indicator {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 0;
+    z-index: 150;  /* Much higher z-index to be above alliance fade */
+    transition: height 0.2s ease-out;
+    opacity: 0;
+}
+
+#next-hub-indicator.show {
+    opacity: 1;
+    height: 60px;  /* Much taller for visibility */
+    animation: pulse-bar 0.4s ease-in-out infinite;
+}
+
+#next-hub-indicator.blue-next {
+    background: linear-gradient(180deg, #2196f3 0%, #1976d2 100%);
+    border-bottom: 3px solid rgba(255, 255, 255, 0.5);
+}
+
+#next-hub-indicator.red-next {
+    background: linear-gradient(180deg, #f44336 0%, #d32f2f 100%);
+    border-bottom: 3px solid rgba(255, 255, 255, 0.5);
+}
+
+#next-hub-indicator.green-next {
+    background: linear-gradient(180deg, #4caf50 0%, #2e7d32 100%);
+    border-bottom: 3px solid rgba(255, 255, 255, 0.5);
+}
+
+@keyframes pulse-bar {
+    0%, 100% { 
+        opacity: 0.9; 
+        height: 50px;
+        filter: brightness(1);
+    }
+    50% { 
+        opacity: 1; 
+        height: 70px;
+        filter: brightness(1.3);
+    }
+}
+
+/* Hub states */
+#hub-fill.waiting {
+    background: linear-gradient(90deg, #222 0%, #333 100%);
+}
+
+#hub-fill.both-active {
+    background: linear-gradient(90deg, #2e7d32 0%, #1b5e20 100%);
+}
+
+#hub-fill.blue-active {
+    background: linear-gradient(90deg, #1976d2 0%, #0d47a1 100%);
+}
+
+#hub-fill.red-active {
+    background: linear-gradient(90deg, #d32f2f 0%, #b71c1c 100%);
+}
+
+#hub-fill.transition {
+    background: linear-gradient(90deg, #ff9800 0%, #e65100 100%);
+}
+
+#hub-fill.match-end {
+    background: #111;
+}
+
+/* Endgame pulse animation */
+#hub-fill.endgame-pulse {
+    animation: pulse-green 0.5s ease-in-out infinite alternate;
+}
+
+@keyframes pulse-green {
+    from {
+        background: linear-gradient(90deg, #2e7d32 0%, #1b5e20 100%);
+    }
+    to {
+        background: linear-gradient(90deg, #43a047 0%, #2e7d32 100%);
+    }
 }

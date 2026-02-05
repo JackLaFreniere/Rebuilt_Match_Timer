@@ -2,22 +2,53 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>FMS Data Display</title>
+    <title>Match Timer</title>
     <link rel="stylesheet" href="style.css">
 </head>
-<body>
-    <h1>FMS Data</h1>
-    <div id="status">Disconnected</div>
-    <table>
-        <thead>
-            <tr>
-                <th>Key</th>
-                <th>Value</th>
-            </tr>
-        </thead>
-        <tbody id="data">
-        </tbody>
-    </table>
+<body class="disconnected">
+    <!-- Top Info Bar -->
+    <div id="info-bar">
+        <div class="info-item">
+            <span class="label">Event</span>
+            <span id="event-name">---</span>
+        </div>
+        <div class="info-item">
+            <span class="label">Match</span>
+            <span id="match-info">---</span>
+        </div>
+        <div class="info-item">
+            <span class="label">WS</span>
+            <span id="ws-status" class="status-dot disconnected"></span>
+        </div>
+        <div class="info-item">
+            <span class="label">DS</span>
+            <span id="ds-status" class="status-dot disconnected"></span>
+        </div>
+    </div>
+
+    <!-- Main Display Area -->
+    <div id="main-display">
+        <!-- Hub Progress Bar (behind everything) -->
+        <div id="hub-display">
+            <div id="hub-bar">
+                <div id="hub-fill"></div>
+                <div id="hub-gray"></div>
+            </div>
+        </div>
+
+        <!-- Next Hub Indicator (shows during transition) -->
+        <div id="next-hub-indicator"></div>
+
+        <!-- Global Timer at top -->
+        <div id="global-timer">--:--</div>
+
+        <!-- Phase and Time Info -->
+        <div id="phase-info">
+            <div id="current-phase">NOT CONNECTED</div>
+            <div id="phase-timer">--</div>
+            <div id="next-phase"></div>
+        </div>
+    </div>
 
     <script src="script.js"></script>
 </body>
