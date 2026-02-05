@@ -25,6 +25,7 @@ def getSubscribers():
 
     keys_driver_station = {
         "DSAttatched": "bool",
+        "Autonomous": "bool",
         "Enabled": "bool",
         "MatchTime": "double",
         "GameSpecificMessage": "str"
