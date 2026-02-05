@@ -1,41 +1,65 @@
 import ntcore
 import time
 
-def getInfo(keys: dict, key: str):
-    match keys[key]:
+def getInfo(table: ntcore.NetworkTable, key: str, val:str):
+    match val:
         case "str":
             return table.getStringTopic(key).subscribe("default")
         case "int":
             return table.getIntegerTopic(key).subscribe(-1)
+        case "double":
+            return table.getDoubleTopic(key).subscribe(-1.0)
         case "bool":
             return table.getBooleanTopic(key).subscribe(False)
 
 def getSubscribers():
-    keys = {
+    global table_fms, table_driver_station
+
+    keys_fms = {
         ".type": "str",
         "EventName": "str",
-        "GameSpecificMessage": "str",
         "isRedAlliance": "bool",
         "MatchNumber": "int",
         "MatchType": "int"
     }
+
+    keys_driver_station = {
+        "DSAttatched": "bool",
+        "Enabled": "bool",
+        "MatchTime": "double",
+        "GameSpecificMessage": "str"
+    }
+
     subscribers = []
-    for key in keys:
-        subscribers.append(getInfo(keys, key))
+    for key in keys_fms:
+        subscribers.append(getInfo(table_fms, key, keys_fms[key]))
+
+    for key in keys_driver_station:
+        subscribers.append(getInfo(table_driver_station, key, keys_driver_station[key]))
+
     return subscribers
+
+def strip_name(sub: str):
+    name = sub.getTopic().getName()[1:]
+    while "/" in name:
+        name = name[name.index("/") + 1:]
+
+    return name
 
 def build_state(subscribers):
     state = {}
     for sub in subscribers:
-        key = sub.getTopic().getName()[9:]  # strips "/FMSInfo/"
+        key = strip_name(sub)
         state[key] = sub.get()
     return state
 
 def run(on_update):
-    global table
+    global table_fms, table_driver_station
 
     inst = ntcore.NetworkTableInstance.getDefault()
-    table = inst.getTable("FMSInfo")
+    table_fms = inst.getTable("FMSInfo")
+    table_driver_station = inst.getTable("AdvantageKit/DriverStation")
+
     subscribers = getSubscribers()
 
     inst.startClient4("example client")
