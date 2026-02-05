@@ -53,7 +53,7 @@ def build_state(subscribers):
         state[key] = sub.get()
     return state
 
-def run(on_update):
+def run(on_update, sim_mode=False):
     global table_fms, table_driver_station
 
     inst = ntcore.NetworkTableInstance.getDefault()
@@ -62,9 +62,15 @@ def run(on_update):
 
     subscribers = getSubscribers()
 
-    inst.startClient4("example client")
-    inst.setServerTeam(930)
-    inst.startDSClient()
+    inst.startClient4("match_timer")
+    
+    if sim_mode:
+        inst.setServer("127.0.0.1")
+        print("[NT] Connecting to simulation on localhost")
+    else:
+        inst.setServerTeam(930)
+        inst.startDSClient()
+        print("[NT] Connecting to Team 930 robot")
 
     last_state = None
 
@@ -77,4 +83,6 @@ def run(on_update):
             last_state = current.copy()
 
 if __name__ == "__main__":
-    run(print)
+    import sys
+    sim = "--sim" in sys.argv
+    run(print, sim_mode=sim)
