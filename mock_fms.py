@@ -61,9 +61,12 @@ class MockFMS:
         self.event_name = name
         self.broadcast()
     
-    def set_match(self, number, match_type=2):
+    def set_match_number(self, number):
         self.match_number = number
-        self.match_type = match_type
+        self.broadcast()
+
+    def set_match_type(self, type):
+        self.match_type = type
         self.broadcast()
     
     def start_match(self, first_off="b"):
@@ -215,12 +218,13 @@ def run_control_loop(mock: MockFMS):
     print("  x        - Stop match")
     print("  e <name> - Set event name")
     print("  m <num>  - Set match number")
+    print("  t <num>  - Set match type")
     print("  q        - Quit")
     print("==============================\n")
     
     while True:
         try:
-            cmd = input("> ").strip().lower()
+            cmd = input("> ").strip()
             if not cmd:
                 continue
             
@@ -250,7 +254,11 @@ def run_control_loop(mock: MockFMS):
                 print(f"Event: {name}")
             elif cmd.startswith("m "):
                 num = int(cmd[2:].strip())
-                mock.set_match(num)
+                mock.set_match_number(num)
+                print(f"Match: {num}")
+            elif cmd.startswith("t "):
+                num = int(cmd[2:].strip())
+                mock.set_match_type(num)
                 print(f"Match: {num}")
             elif cmd == "q":
                 break
