@@ -62,11 +62,19 @@ def compute_phase_and_hubs(state, tracker):
     match_time = state.get("MatchTime", 0.0)
     gsm = state.get("GameSpecificMessage", "")
     
+    # Handle GSM timing - lock in the value once we get it during the match
+    if gsm and gsm in ["b", "r"]:
+        if tracker.get("gsm_locked") != gsm:
+            print(f"[NT] GameSpecificMessage received: {gsm} ({'blue' if gsm == 'b' else 'red'} off first)")
+        tracker["gsm_locked"] = gsm
+    locked_gsm = tracker.get("gsm_locked", "")
+    
     # Determine phase
     if not ds_attached:
         phase = "disconnected"
         tracker["saw_auto"] = False
         tracker["saw_teleop"] = False
+        tracker["gsm_locked"] = ""  # Reset GSM on disconnect
     elif not enabled:
         if tracker["saw_teleop"]:
             phase = "match_end"
@@ -74,6 +82,9 @@ def compute_phase_and_hubs(state, tracker):
             phase = "transition"
         else:
             phase = "pre_match"
+            # Reset GSM at match start for safety
+            if not tracker.get("saw_auto", False):
+                tracker["gsm_locked"] = ""
     elif autonomous:
         phase = "auto"
         tracker["saw_auto"] = True
@@ -86,6 +97,7 @@ def compute_phase_and_hubs(state, tracker):
             phase = "teleop"
     
     state["phase"] = phase
+    state["GameSpecificMessage"] = locked_gsm  # Use locked GSM for display
     
     # Compute hub states
     blue_on = False
@@ -103,7 +115,16 @@ def compute_phase_and_hubs(state, tracker):
             # Alternating periods
             elapsed = 130 - match_time
             period = int(elapsed // 25)
-            blue_off_first = (gsm == "b")
+            
+            # Use locked GSM, fallback to current alliance if no GSM available
+            if locked_gsm:
+                blue_off_first = (locked_gsm == "b")
+            else:
+                # Fallback: Use alliance color - your alliance turns off first
+                # This is a reasonable guess when GSM is unavailable
+                is_red_alliance = state.get("isRedAlliance", True)
+                blue_off_first = not is_red_alliance
+                print(f"[WARNING] No GameSpecificMessage available, using alliance fallback: {'blue' if blue_off_first else 'red'} off first")
             
             if period % 2 == 0:
                 blue_on = not blue_off_first
@@ -121,7 +142,7 @@ def compute_phase_and_hubs(state, tracker):
     
     return state
 
-def run(on_update, sim_mode=False):
+def run(on_update):
     global table_fms, table_driver_station
 
     inst = ntcore.NetworkTableInstance.getDefault()
@@ -131,17 +152,12 @@ def run(on_update, sim_mode=False):
     subscribers = getSubscribers()
 
     inst.startClient4("match_timer")
-    
-    if sim_mode:
-        inst.setServer("127.0.0.1")
-        print("[NT] Connecting to simulation on localhost")
-    else:
-        inst.setServerTeam(930)
-        inst.startDSClient()
-        print("[NT] Connecting to Team 930 robot")
+    inst.setServerTeam(930)
+    inst.startDSClient()
+    print("[NT] Connecting to Team 930 robot")
 
     last_state = None
-    tracker = {"saw_auto": False, "saw_teleop": False}
+    tracker = {"saw_auto": False, "saw_teleop": False, "gsm_locked": ""}
 
     while True:
         time.sleep(0.02)
@@ -153,6 +169,4 @@ def run(on_update, sim_mode=False):
             last_state = current.copy()
 
 if __name__ == "__main__":
-    import sys
-    sim = "--sim" in sys.argv
-    run(print, sim_mode=sim)
+    run(print)

@@ -208,7 +208,7 @@ def run_control_loop(mock: MockFMS):
     import time
     time.sleep(0.5)  # Wait for other startup messages
     
-    print("\n=== Mock FMS Control Panel ===")
+    print("\n========== Mock FMS Control Panel ==========")
     print("Commands:")
     print("  c        - Connect DS")
     print("  d        - Disconnect DS")
@@ -220,7 +220,7 @@ def run_control_loop(mock: MockFMS):
     print("  m <num>  - Set match number")
     print("  t <num>  - Set match type")
     print("  q        - Quit")
-    print("==============================\n")
+    print("============================================\n")
     
     while True:
         try:

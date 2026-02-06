@@ -7,7 +7,6 @@ from http_server import run_http_server
 
 data_queue = queue.Queue()
 mock_mode = "--mock" in sys.argv
-sim_mode = "--sim" in sys.argv
 
 def on_update(data):
     data_queue.put(data)
@@ -43,13 +42,10 @@ async def main():
     else:
         # Use real NetworkTables
         import nt_reader
-        thread = threading.Thread(target=nt_reader.run, args=(on_update, sim_mode), daemon=True)
+        thread = threading.Thread(target=nt_reader.run, args=(on_update,), daemon=True)
         thread.start()
         
-        if sim_mode:
-            print("[Main] Running in SIMULATION mode - connecting to localhost")
-        else:
-            print("[Main] Running in ROBOT mode - connecting to Team 930")
+        print("[Main] Running in ROBOT mode - connecting to Team 930")
 
     await asyncio.gather(
         run_websocket_server(),
@@ -58,9 +54,6 @@ async def main():
     )
 
 if __name__ == "__main__":
-    print("Usage: python main.py [--mock | --sim]")
-    print("  --mock : Use fake FMS data with manual control")
-    print("  --sim  : Connect to WPILib simulation on localhost")
-    print("  (none) : Connect to real robot")
+    print("FRC 2026 Hub Status Display - Team 930")
     print()
     asyncio.run(main())
