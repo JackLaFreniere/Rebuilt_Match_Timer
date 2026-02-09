@@ -17,12 +17,8 @@ class MockFMS:
         # State
         self.ds_attached = False
         self.enabled = False
+        self.autonomous = False
         self.match_time = 0.0
-        self.phase = "disconnected"
-        
-        # Hub state
-        self.blue_hub_active = False
-        self.red_hub_active = False
     
     def get_state(self):
         return {
@@ -31,12 +27,10 @@ class MockFMS:
             "MatchType": self.match_type,
             "isRedAlliance": self.is_red_alliance,
             "GameSpecificMessage": self.game_specific_message,
-            "DSAttached": self.ds_attached,
+            "DSAttatched": self.ds_attached,
             "Enabled": self.enabled,
+            "Autonomous": self.autonomous,
             "MatchTime": self.match_time,
-            "phase": self.phase,
-            "blueHubActive": self.blue_hub_active,
-            "redHubActive": self.red_hub_active,
         }
     
     def broadcast(self):
@@ -44,13 +38,12 @@ class MockFMS:
     
     def connect_ds(self):
         self.ds_attached = True
-        self.phase = "pre_match"
         self.broadcast()
     
     def disconnect_ds(self):
         self.ds_attached = False
-        self.phase = "disconnected"
         self.enabled = False
+        self.autonomous = False
         self.broadcast()
     
     def set_alliance(self, is_red):
@@ -81,21 +74,17 @@ class MockFMS:
     def stop_match(self):
         self.running = False
         self.enabled = False
-        self.phase = "pre_match"
-        self.blue_hub_active = False
-        self.red_hub_active = False
+        self.autonomous = False
         self.game_specific_message = ""
         self.broadcast()
     
     def _run_match(self, first_off):
         """Runs the full match timing sequence."""
-        tick = 0.05  # 50ms ticks
+        tick = 0.02  # 50ms ticks
         
         # === AUTO (20 seconds) ===
-        self.phase = "auto"
         self.enabled = True
-        self.blue_hub_active = True
-        self.red_hub_active = True
+        self.autonomous = True
         self.match_time = 20.0
         self.broadcast()
         
@@ -111,8 +100,8 @@ class MockFMS:
             self.broadcast()
         
         # === TRANSITION (~3 seconds) ===
-        self.phase = "transition"
         self.enabled = False
+        self.autonomous = False
         self.match_time = 0.0
         self.broadcast()
         
@@ -121,14 +110,12 @@ class MockFMS:
             return
         
         # === TELEOP START ===
-        self.phase = "teleop"
         self.enabled = True
+        self.autonomous = False
         self.match_time = 140.0  # 2:20
         
-        # First 10 seconds: Both hubs on, send GSM
+        # Send GSM
         self.game_specific_message = first_off
-        self.blue_hub_active = True
-        self.red_hub_active = True
         self.broadcast()
         
         for _ in range(int(10 / tick)):
@@ -143,28 +130,9 @@ class MockFMS:
             self.broadcast()
 
         # === ALTERNATING PERIODS (4x 25 seconds = 100 seconds) ===
-        # first_off = "b" means blue turns off first
-        blue_off_first = (first_off == "b")
-        
         for period in range(4):
             if not self.running:
                 return
-            
-            # Determine which hub is on this period
-            # Period 0: first_off is off
-            # Period 1: other is off
-            # Period 2: first_off is off again
-            # etc.
-            if period % 2 == 0:
-                # First hub off
-                self.blue_hub_active = not blue_off_first
-                self.red_hub_active = blue_off_first
-            else:
-                # Second hub off
-                self.blue_hub_active = blue_off_first
-                self.red_hub_active = not blue_off_first
-            
-            self.broadcast()
             
             for _ in range(int(25 / tick)):
                 if not self.running:
@@ -177,9 +145,7 @@ class MockFMS:
                 self.broadcast()
         
         # === ENDGAME (30 seconds) ===
-        self.phase = "endgame"
-        self.blue_hub_active = True
-        self.red_hub_active = True
+        # Still in teleop mode, just final 30 seconds
         self.broadcast()
         
         for _ in range(int(30 / tick)):
@@ -194,11 +160,9 @@ class MockFMS:
             self.broadcast()
         
         # === MATCH END ===
-        self.phase = "match_end"
         self.enabled = False
+        self.autonomous = False
         self.match_time = 0.0
-        self.blue_hub_active = False
-        self.red_hub_active = False
         self.broadcast()
 
 

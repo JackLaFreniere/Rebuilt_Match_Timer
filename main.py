@@ -1,9 +1,12 @@
+import nt_reader
 import asyncio
 import threading
 import queue
 import sys
+from mock_fms import MockFMS, run_control_loop
 from ws_server import run_websocket_server, broadcast
 from http_server import run_http_server
+from nt_reader import run
 
 data_queue = queue.Queue()
 mock_mode = "--mock" in sys.argv
@@ -22,16 +25,16 @@ async def queue_processor():
 
 def run_mock_control(mock):
     """Run the mock FMS control loop in a separate thread."""
-    from mock_fms import run_control_loop
     run_control_loop(mock)
+
+def run_nt_reader(update):
+    """Run the real FMS control look in a seperate thread."""
+    run(update)
 
 async def main():
     if mock_mode:
         # Use mock FMS instead of real NetworkTables
-        from mock_fms import MockFMS
         mock = MockFMS(on_update)
-        
-        # Send initial disconnected state
         mock.broadcast()
         
         # Start control loop in main thread after servers start
@@ -41,8 +44,7 @@ async def main():
         print("[Main] Running in MOCK mode - use control commands to simulate")
     else:
         # Use real NetworkTables
-        import nt_reader
-        thread = threading.Thread(target=nt_reader.run, args=(on_update,), daemon=True)
+        thread = threading.Thread(target=run_nt_reader, args=(on_update,), daemon=True)
         thread.start()
         
         print("[Main] Running in ROBOT mode - connecting to Team 930")

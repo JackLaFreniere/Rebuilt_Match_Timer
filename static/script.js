@@ -1,5 +1,12 @@
 const ws = new WebSocket("ws://127.0.0.1:8765");
 
+// Game state tracker - moved from Python backend
+let gameState = {
+    sawAuto: false,
+    sawTeleop: false,
+    gsmLocked: ""
+};
+
 // Elements
 const eventNameEl = document.getElementById("event-name");
 const matchInfoEl = document.getElementById("match-info");
@@ -52,6 +59,105 @@ function formatPhaseTime(seconds) {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+function computePhaseAndHubs(rawData) {
+    // Game logic moved from Python backend to JavaScript frontend
+    const dsAttached = rawData.DSAttatched || false;
+    const enabled = rawData.Enabled || false;
+    const autonomous = rawData.Autonomous || false;
+    const matchTime = rawData.MatchTime || 0.0;
+    const gsm = rawData.GameSpecificMessage || "";
+    
+    // Handle GSM locking - lock in the value once we get it during the match
+    if (gsm && (gsm === "b" || gsm === "r")) {
+        if (gameState.gsmLocked !== gsm) {
+            console.log(`[JS] GameSpecificMessage received: ${gsm} (${gsm === 'b' ? 'blue' : 'red'} off first)`);
+        }
+        gameState.gsmLocked = gsm;
+    }
+    
+    let phase;
+    let blueHubActive = false;
+    let redHubActive = false;
+    
+    // Determine phase
+    if (!dsAttached) {
+        phase = "disconnected";
+        gameState.sawAuto = false;
+        gameState.sawTeleop = false;
+        gameState.gsmLocked = ""; // Reset GSM on disconnect
+    } else if (!enabled) {
+        if (gameState.sawTeleop) {
+            phase = "match_end";
+        } else if (gameState.sawAuto) {
+            phase = "transition";
+        } else {
+            phase = "pre_match";
+            // Reset GSM at match start for safety
+            if (!gameState.sawAuto) {
+                gameState.gsmLocked = "";
+            }
+        }
+    } else if (autonomous) {
+        phase = "auto";
+        gameState.sawAuto = true;
+    } else {
+        // Teleop
+        gameState.sawTeleop = true;
+        if (matchTime <= 30) {
+            phase = "endgame";
+        } else {
+            phase = "teleop";
+        }
+    }
+    
+    // Compute hub states
+    if (phase === "auto" || phase === "transition") {
+        blueHubActive = true;
+        redHubActive = true;
+    } else if (phase === "teleop" || phase === "endgame") {
+        if (matchTime > 130) {
+            // First 10 seconds of teleop - both on
+            blueHubActive = true;
+            redHubActive = true;
+        } else if (matchTime > 30) {
+            // Alternating periods
+            const elapsed = 130 - matchTime;
+            const period = Math.floor(elapsed / 25);
+            
+            // Use locked GSM, fallback to current alliance if no GSM available
+            let blueOffFirst;
+            if (gameState.gsmLocked) {
+                blueOffFirst = (gameState.gsmLocked === "b");
+            } else {
+                // Fallback: Use alliance color - your alliance turns off first
+                const isRedAlliance = rawData.isRedAlliance !== false; // Default true
+                blueOffFirst = !isRedAlliance;
+                console.log(`[WARNING] No GameSpecificMessage available, using alliance fallback: ${blueOffFirst ? 'blue' : 'red'} off first`);
+            }
+            
+            if (period % 2 === 0) {
+                blueHubActive = !blueOffFirst;
+                redHubActive = blueOffFirst;
+            } else {
+                blueHubActive = blueOffFirst;
+                redHubActive = !blueOffFirst;
+            }
+        } else {
+            // Endgame - both on
+            blueHubActive = true;
+            redHubActive = true;
+        }
+    }
+    
+    return {
+        ...rawData,
+        phase: phase,
+        blueHubActive: blueHubActive,
+        redHubActive: redHubActive,
+        GameSpecificMessage: gameState.gsmLocked // Use locked GSM for display
+    };
 }
 
 function getPhaseInfo(phase, matchTime, blueOn, redOn, gsm) {
@@ -138,7 +244,10 @@ function getPhaseTimeRemaining(phase, matchTime) {
     return 0;
 }
 
-function updateDisplay(data) {
+function updateDisplay(rawData) {
+    // Compute all game logic from raw data
+    const data = computePhaseAndHubs(rawData);
+    
     // Update info bar
     eventNameEl.textContent = data.EventName || "---";
     
@@ -146,7 +255,7 @@ function updateDisplay(data) {
     matchInfoEl.textContent = data.MatchNumber ? `${matchType} ${data.MatchNumber}` : "---";
     
     // DS status
-    if (data.DSAttached) {
+    if (data.DSAttatched) {
         dsStatusEl.classList.remove("disconnected");
         dsStatusEl.classList.add("connected");
     } else {
@@ -334,7 +443,7 @@ ws.onclose = () => {
     // Show disconnected state
     updateDisplay({
         phase: "disconnected",
-        DSAttached: false
+        DSAttatched: false
     });
 };
 
