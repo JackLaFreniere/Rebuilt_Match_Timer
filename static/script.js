@@ -4,8 +4,21 @@ const ws = new WebSocket("ws://127.0.0.1:8765");
 let gameState = {
     sawAuto: false,
     sawTeleop: false,
-    gsmLocked: ""
+    gsmLocked: "",
+    gsmOverride: null
 };
+
+// GSM Override — send to server
+function sendGSMOverride(value) {
+    if (ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ type: 'gsm_override', value }));
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('gsm-red-btn').addEventListener('click', () => sendGSMOverride('r'));
+    document.getElementById('gsm-blue-btn').addEventListener('click', () => sendGSMOverride('b'));
+    document.getElementById('gsm-clear-btn').addEventListener('click', () => sendGSMOverride('clear'));
+});
 
 // Elements
 const eventNameEl = document.getElementById("event-name");
@@ -68,6 +81,7 @@ function computePhaseAndHubs(rawData) {
     const autonomous = rawData.Autonomous || false;
     const matchTime = rawData.MatchTime || 0.0;
     const gsm = rawData.GameSpecificMessage || "";
+    const gsmOverride = rawData.GSMOverride || null;
     
     // Handle GSM locking - lock in the value once we get it during the match
     if (gsm && (gsm === "b" || gsm === "r")) {
@@ -76,6 +90,9 @@ function computePhaseAndHubs(rawData) {
         }
         gameState.gsmLocked = gsm;
     }
+    
+    // Track override state from server
+    gameState.gsmOverride = gsmOverride;
     
     let phase;
     let blueHubActive = false;
@@ -103,8 +120,11 @@ function computePhaseAndHubs(rawData) {
         phase = "auto";
         gameState.sawAuto = true;
     } else {
-        // Teleop
-        gameState.sawTeleop = true;
+        // Teleop - only mark sawTeleop once matchTime confirms it
+        // (prevents race condition when Autonomous flips before Enabled during transitions)
+        if (matchTime > 1) {
+            gameState.sawTeleop = true;
+        }
         if (matchTime <= 30) {
             phase = "endgame";
         } else {
@@ -126,9 +146,11 @@ function computePhaseAndHubs(rawData) {
             const elapsed = 130 - matchTime;
             const period = Math.floor(elapsed / 25);
             
-            // Use locked GSM, fallback to current alliance if no GSM available
+            // Priority: (1) Manual override, (2) Locked GSM, (3) Alliance fallback
             let blueOffFirst;
-            if (gameState.gsmLocked) {
+            if (gameState.gsmOverride) {
+                blueOffFirst = (gameState.gsmOverride === "b");
+            } else if (gameState.gsmLocked) {
                 blueOffFirst = (gameState.gsmLocked === "b");
             } else {
                 // Fallback: Use alliance color - your alliance turns off first
@@ -151,12 +173,16 @@ function computePhaseAndHubs(rawData) {
         }
     }
     
+    // Effective GSM: override > locked > empty
+    const effectiveGSM = gameState.gsmOverride || gameState.gsmLocked;
+    
     return {
         ...rawData,
         phase: phase,
         blueHubActive: blueHubActive,
         redHubActive: redHubActive,
-        GameSpecificMessage: gameState.gsmLocked // Use locked GSM for display
+        GameSpecificMessage: effectiveGSM,
+        GSMOverride: gameState.gsmOverride
     };
 }
 
@@ -253,6 +279,9 @@ function updateDisplay(rawData) {
     
     const matchType = matchTypes[data.MatchType] || "Match";
     matchInfoEl.textContent = data.MatchNumber ? `${matchType} ${data.MatchNumber}` : "---";
+    
+    // GSM status display
+    updateGSMDisplay(data);
     
     // DS status
     if (data.DSAttatched) {
@@ -420,6 +449,38 @@ function updateHubDisplay(data, phaseInfo) {
             nextHubIndicatorEl.classList.add(nextIsBlue ? "blue-next" : "red-next");
         }
     }
+}
+
+function updateGSMDisplay(data) {
+    const el = document.getElementById('gsm-value');
+    const redBtn = document.getElementById('gsm-red-btn');
+    const blueBtn = document.getElementById('gsm-blue-btn');
+    if (!el) return;
+    
+    const override = data.GSMOverride;
+    const locked = gameState.gsmLocked;
+    const effective = override || locked;
+    
+    // Show effective value
+    if (effective === 'r') {
+        el.textContent = 'R';
+        el.className = 'gsm-value red';
+    } else if (effective === 'b') {
+        el.textContent = 'B';
+        el.className = 'gsm-value blue';
+    } else {
+        el.textContent = '---';
+        el.className = 'gsm-value';
+    }
+    
+    // Add override indicator
+    if (override) {
+        el.classList.add('overridden');
+    }
+    
+    // Highlight active button
+    redBtn.classList.toggle('active', override === 'r');
+    blueBtn.classList.toggle('active', override === 'b');
 }
 
 // WebSocket handlers

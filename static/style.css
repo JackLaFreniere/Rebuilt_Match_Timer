@@ -111,6 +111,84 @@ body.match-ended #main-display::before {
     background: #f44336;
 }
 
+/* GSM Override Controls (always visible in info bar) */
+.gsm-group {
+    gap: 0.4rem !important;
+}
+
+.gsm-value {
+    font-family: 'Consolas', monospace;
+    font-size: 1rem;
+    font-weight: bold;
+    min-width: 1.8rem;
+    text-align: center;
+}
+
+.gsm-value.red { color: #f44336; }
+.gsm-value.blue { color: #2196f3; }
+.gsm-value.overridden { text-decoration: underline; text-underline-offset: 3px; }
+
+.gsm-buttons {
+    display: flex;
+    gap: 3px;
+}
+
+.gsm-btn {
+    width: 28px;
+    height: 28px;
+    border: 2px solid #555;
+    border-radius: 4px;
+    font-weight: bold;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.1s ease;
+    padding: 0;
+    line-height: 1;
+    color: #ccc;
+    background: #333;
+}
+
+.gsm-btn:hover {
+    filter: brightness(1.3);
+}
+
+.gsm-btn:active {
+    transform: scale(0.93);
+}
+
+.gsm-btn.red {
+    border-color: #d32f2f;
+    color: #f44336;
+}
+
+.gsm-btn.red.active {
+    background: #d32f2f;
+    color: #fff;
+    box-shadow: 0 0 8px rgba(244, 67, 54, 0.6);
+}
+
+.gsm-btn.blue {
+    border-color: #1976d2;
+    color: #2196f3;
+}
+
+.gsm-btn.blue.active {
+    background: #1976d2;
+    color: #fff;
+    box-shadow: 0 0 8px rgba(33, 150, 243, 0.6);
+}
+
+.gsm-btn.clear {
+    border-color: #555;
+    color: #888;
+    font-size: 1rem;
+}
+
+.gsm-btn.clear:hover {
+    color: #fff;
+    border-color: #888;
+}
+
 /* Global Timer at top of main area */
 #global-timer {
     position: absolute;

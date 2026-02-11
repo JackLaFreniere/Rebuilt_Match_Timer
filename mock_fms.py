@@ -62,8 +62,8 @@ class MockFMS:
         self.match_type = type
         self.broadcast()
     
-    def start_match(self, first_off="b"):
-        """Start a full match simulation. first_off = 'b' or 'r' for which hub turns off first."""
+    def start_match(self, first_off=""):
+        """Start a full match simulation. first_off = 'b' or 'r' for which hub turns off first, or '' for none."""
         if self.match_thread and self.match_thread.is_alive():
             return  # Already running
         
@@ -114,8 +114,9 @@ class MockFMS:
         self.autonomous = False
         self.match_time = 140.0  # 2:20
         
-        # Send GSM
-        self.game_specific_message = first_off
+        # Send GSM (only if explicitly provided)
+        if first_off:
+            self.game_specific_message = first_off
         self.broadcast()
         
         for _ in range(int(10 / tick)):
@@ -178,7 +179,7 @@ def run_control_loop(mock: MockFMS):
     print("  d        - Disconnect DS")
     print("  r        - Set Red Alliance")
     print("  b        - Set Blue Alliance")
-    print("  s [b|r]  - Start match (b=blue off first, r=red off first)")
+    print("  s [b|r]  - Start match (b=blue off first, r=red off first, omit=no GSM)")
     print("  x        - Stop match")
     print("  e <name> - Set event name")
     print("  m <num>  - Set match number")
@@ -206,9 +207,12 @@ def run_control_loop(mock: MockFMS):
                 print("Set to Blue Alliance")
             elif cmd.startswith("s"):
                 parts = cmd.split()
-                first_off = parts[1] if len(parts) > 1 else "b"
+                first_off = parts[1] if len(parts) > 1 else ""
                 mock.start_match(first_off)
-                print(f"Match started ({first_off} hub off first)")
+                if first_off:
+                    print(f"Match started ({first_off} hub off first)")
+                else:
+                    print("Match started (no GSM - use override buttons)")
             elif cmd == "x":
                 mock.stop_match()
                 print("Match stopped")
