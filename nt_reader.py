@@ -1,82 +1,53 @@
 import ntcore
 import time
 
-def getInfo(table: ntcore.NetworkTable, key: str, val:str):
-    match val:
-        case "str":
-            return table.getStringTopic(key).subscribe("default")
-        case "int":
-            return table.getIntegerTopic(key).subscribe(-1)
-        case "double":
-            return table.getDoubleTopic(key).subscribe(-1.0)
-        case "bool":
-            return table.getBooleanTopic(key).subscribe(False)
+from ntcore import NetworkTable
 
-def getSubscribers():
-    global table_fms, table_driver_station
+FMS_KEYS = {
+    "EventName": "str",
+    "isRedAlliance": "bool",
+    "MatchNumber": "int",
+    "MatchType": "int",
+}
 
-    keys_fms = {
-        ".type": "str",
-        "EventName": "str",
-        "isRedAlliance": "bool",
-        "MatchNumber": "int",
-        "MatchType": "int"
-    }
+DS_KEYS = {
+    "DSAttatched": "bool",
+    "Autonomous": "bool",
+    "Enabled": "bool",
+    "MatchTime": "double",
+    "GameSpecificMessage": "str",
+}
 
-    keys_driver_station = {
-        "DSAttatched": "bool",
-        "Autonomous": "bool",
-        "Enabled": "bool",
-        "MatchTime": "double",
-        "GameSpecificMessage": "str"
-    }
+def _subscribe(table: NetworkTable, key: str, type_name: str):
+    """Create a subscriber for a single NetworkTables key."""
 
-    subscribers = []
-    for key in keys_fms:
-        subscribers.append(getInfo(table_fms, key, keys_fms[key]))
+    match type_name:
+        case "str": return table.getStringTopic(key).subscribe("")
+        case "int": return table.getIntegerTopic(key).subscribe(-1)
+        case "double": return table.getDoubleTopic(key).subscribe(-1.0)
+        case "bool": return table.getBooleanTopic(key).subscribe(False)
 
-    for key in keys_driver_station:
-        subscribers.append(getInfo(table_driver_station, key, keys_driver_station[key]))
+def _key_name(sub: NetworkTable) -> str:
+    """Extract the leaf key name from a subscriber's topic path."""
 
-    return subscribers
+    return sub.getTopic().getName().rsplit("/", 1)[-1]
 
-def strip_name(sub: str):
-    name = sub.getTopic().getName()[1:]
-    while "/" in name:
-        name = name[name.index("/") + 1:]
-
-    return name
-
-def build_state(subscribers):
-    state = {}
-    for sub in subscribers:
-        key = strip_name(sub)
-        state[key] = sub.get()
-    return state
-
-# Game logic computation moved to JavaScript frontend
-
-def run(on_update):
-    global table_fms, table_driver_station
-
+def run(on_update, team_number):
     inst = ntcore.NetworkTableInstance.getDefault()
-
     table_fms = inst.getTable("FMSInfo")
-    table_driver_station = inst.getTable("AdvantageKit/DriverStation")
+    table_ds = inst.getTable("AdvantageKit/DriverStation")
 
-    subscribers = getSubscribers()
+    subscribers = [_subscribe(table_fms, k, t) for k, t in FMS_KEYS.items()]
+    subscribers += [_subscribe(table_ds, k, t) for k, t in DS_KEYS.items()]
 
     inst.startClient4("match_timer")
-    inst.setServerTeam(930)
+    inst.setServerTeam(team_number)
     inst.startDSClient()
-    print("[NT] Connecting to Team 930 robot")
 
     last_state = None
-
     while True:
         time.sleep(0.02)
-        current = build_state(subscribers)
-
+        current = {_key_name(s): s.get() for s in subscribers}
         if current != last_state:
             on_update(current)
             last_state = current.copy()

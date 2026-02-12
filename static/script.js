@@ -8,6 +8,11 @@ let gameState = {
     gsmOverride: null
 };
 
+// Interpolation state for smooth countdown between integer FMS updates
+let lastRawData = null;
+let lastReceiveTime = 0;
+let lastRawMatchTime = null;  // Track the raw integer value for re-anchoring
+
 // GSM Override — send to server
 function sendGSMOverride(value) {
     if (ws.readyState !== WebSocket.OPEN) return;
@@ -42,21 +47,9 @@ const matchTypes = {
     3: "Elim"
 };
 
-// Phase durations for calculating phase time remaining
-const PHASE_DURATIONS = {
-    auto: 20,
-    teleop_both: 10,
-    teleop_alt: 25,
-    endgame: 30
-};
-
 function formatTime(seconds) {
     if (seconds < 0) seconds = 0;
-    if (seconds === 0) {
-        // Handle exact zero case
-        return "0:00";
-    }
-    seconds = Math.ceil(seconds);  // Round up to show current second
+    seconds = Math.ceil(seconds);
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
@@ -111,10 +104,7 @@ function computePhaseAndHubs(rawData) {
             phase = "transition";
         } else {
             phase = "pre_match";
-            // Reset GSM at match start for safety
-            if (!gameState.sawAuto) {
-                gameState.gsmLocked = "";
-            }
+            gameState.gsmLocked = "";
         }
     } else if (autonomous) {
         phase = "auto";
@@ -245,29 +235,6 @@ function getPhaseInfo(phase, matchTime, blueOn, redOn, gsm) {
     }
     
     return info;
-}
-
-function getPhaseTimeRemaining(phase, matchTime) {
-    // Calculate time remaining in current phase segment
-    if (phase === "auto") {
-        return matchTime; // Auto counts down from 20
-    } else if (phase === "transition") {
-        return 3; // Fixed 3 second transition
-    } else if (phase === "teleop" || phase === "endgame") {
-        if (matchTime > 130) {
-            // First 10 seconds of teleop
-            return matchTime - 130;
-        } else if (matchTime > 30) {
-            // Alternating periods (each 25s)
-            const elapsed = 130 - matchTime;
-            const periodTime = elapsed % 25;
-            return 25 - periodTime;
-        } else {
-            // Endgame
-            return matchTime;
-        }
-    }
-    return 0;
 }
 
 function updateDisplay(rawData) {
@@ -491,9 +458,19 @@ ws.onopen = () => {
 };
 
 ws.onmessage = (event) => {
-    console.log("Received data:", event.data);
     const data = JSON.parse(event.data);
-    updateDisplay(data);
+    const now = performance.now();
+    const rawMT = data.MatchTime || 0;
+
+    // Re-anchor interpolation when we get a new integer step or non-time fields change
+    if (rawMT !== lastRawMatchTime) {
+        lastRawMatchTime = rawMT;
+        lastReceiveTime = now;
+    }
+
+    lastRawData = data;
+    // Immediate render (interpolation loop also runs)
+    renderInterpolated();
 };
 
 ws.onclose = () => {
@@ -511,3 +488,27 @@ ws.onclose = () => {
 ws.onerror = (error) => {
     console.log("WebSocket error:", error);
 };
+
+// Interpolation render loop
+function renderInterpolated() {
+    if (!lastRawData) return;
+
+    const data = { ...lastRawData };
+    const enabled = data.Enabled || false;
+    const rawMT = data.MatchTime || 0;
+
+    if (enabled && rawMT > 0) {
+        // Subtract elapsed time since last FMS update for smooth countdown
+        const elapsed = (performance.now() - lastReceiveTime) / 1000;
+        data.MatchTime = Math.max(0, rawMT - elapsed);
+    }
+
+    updateDisplay(data);
+}
+
+// Run interpolation at display refresh rate
+function animationLoop() {
+    renderInterpolated();
+    requestAnimationFrame(animationLoop);
+}
+requestAnimationFrame(animationLoop);

@@ -189,13 +189,13 @@ body.match-ended #main-display::before {
     border-color: #888;
 }
 
-/* Global Timer at top of main area */
+/* Global Timer */
 #global-timer {
     position: absolute;
-    top: 5rem;  /* Moved down to accommodate larger next hub indicator */
+    top: 5rem;
     left: 50%;
     transform: translateX(-50%);
-    font-size: 5rem;  /* Increased from 3.5rem */
+    font-size: 5rem;
     font-family: 'Consolas', monospace;
     font-weight: bold;
     color: rgba(255,255,255,0.95);
@@ -211,7 +211,7 @@ body.match-ended #main-display::before {
     justify-content: center;
     align-items: center;
     padding: 2rem;
-    padding-bottom: 4rem; /* Leave space for DS at bottom */
+    padding-bottom: 4rem;
     position: relative;
 }
 
@@ -226,16 +226,16 @@ body.match-ended #main-display::before {
 }
 
 #current-phase {
-    font-size: 4.5rem;  /* Increased from 3rem */
+    font-size: 4.5rem;
     font-weight: bold;
     text-transform: uppercase;
-    letter-spacing: 0.3rem;  /* Increased spacing */
+    letter-spacing: 0.3rem;
     text-shadow: 0 0 30px rgba(255,255,255,0.4);
-    margin-bottom: 1rem;  /* Increased margin */
+    margin-bottom: 1rem;
 }
 
 #phase-timer {
-    font-size: 20rem;  /* Increased from 16rem */
+    font-size: 20rem;
     font-weight: bold;
     font-family: 'Consolas', monospace;
     text-shadow: 0 0 60px rgba(255,255,255,0.6), 0 0 120px rgba(255,255,255,0.3);
@@ -243,10 +243,10 @@ body.match-ended #main-display::before {
 }
 
 #next-phase {
-    font-size: 2.5rem;  /* Increased from 1.5rem */
+    font-size: 2.5rem;
     color: rgba(255,255,255,0.7);
     font-style: italic;
-    margin-top: 1rem;  /* Increased margin */
+    margin-top: 1rem;
     text-shadow: 0 0 20px rgba(255,255,255,0.3);
 }
 
@@ -292,14 +292,14 @@ body.match-ended #main-display::before {
     right: 0;
     top: 0;
     height: 0;
-    z-index: 150;  /* Much higher z-index to be above alliance fade */
+    z-index: 150;
     transition: height 0.2s ease-out;
     opacity: 0;
 }
 
 #next-hub-indicator.show {
     opacity: 1;
-    height: 60px;  /* Much taller for visibility */
+    height: 60px;
     animation: pulse-bar 0.4s ease-in-out infinite;
 }
 

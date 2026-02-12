@@ -10,7 +10,7 @@ class MockFMS:
         # Match settings
         self.event_name = "Mock Event"
         self.match_number = 1
-        self.match_type = 2  # 2 = Qualification
+        self.match_type = 2  # Qualification
         self.is_red_alliance = True
         self.game_specific_message = ""
         
@@ -46,11 +46,11 @@ class MockFMS:
         self.autonomous = False
         self.broadcast()
     
-    def set_alliance(self, is_red):
+    def set_alliance(self, is_red: bool):
         self.is_red_alliance = is_red
         self.broadcast()
     
-    def set_event(self, name):
+    def set_event(self, name: str):
         self.event_name = name
         self.broadcast()
     
@@ -58,17 +58,16 @@ class MockFMS:
         self.match_number = number
         self.broadcast()
 
-    def set_match_type(self, type):
-        self.match_type = type
-        self.broadcast()
-    
-    def start_match(self, first_off=""):
-        """Start a full match simulation. first_off = 'b' or 'r' for which hub turns off first, or '' for none."""
+    def start_match(self, first_off:str = ""):
+        """Start a full match. first_off='b'|'r' or '' for no GSM."""
+
         if self.match_thread and self.match_thread.is_alive():
-            return  # Already running
+            return
         
         self.running = True
-        self.match_thread = threading.Thread(target=self._run_match, args=(first_off,), daemon=True)
+        self.match_thread = threading.Thread(
+            target=self._run_match, args=(first_off,), daemon=True
+        )
         self.match_thread.start()
     
     def stop_match(self):
@@ -78,157 +77,109 @@ class MockFMS:
         self.game_specific_message = ""
         self.broadcast()
     
+    def _countdown(self, start, end=0.0):
+        """Count MatchTime from start to end using wall-clock time at ~50Hz."""
+        t0 = time.monotonic()
+        duration = start - end
+        while self.running:
+            elapsed = time.monotonic() - t0
+            if elapsed >= duration:
+                self.match_time = end
+                self.broadcast()
+                return
+            self.match_time = start - elapsed
+            self.broadcast()
+            time.sleep(0.02)
+
+    def _wait(self, seconds):
+        """Wait for a fixed duration, checking for stop."""
+        deadline = time.monotonic() + seconds
+        while self.running and time.monotonic() < deadline:
+            time.sleep(0.02)
+
     def _run_match(self, first_off):
-        """Runs the full match timing sequence."""
-        tick = 0.02  # 50ms ticks
-        
-        # === AUTO (20 seconds) ===
+        """Full match: Auto(20s) -> Transition(3s) -> Teleop(140s) -> End."""
+        # Auto
         self.enabled = True
         self.autonomous = True
-        self.match_time = 20.0
-        self.broadcast()
-        
-        for _ in range(int(20 / tick)):
-            if not self.running:
-                return
-            time.sleep(tick)
-            self.match_time -= tick
-            if self.match_time <= 0:
-                self.match_time = 0.0
-                self.broadcast()
-                break
-            self.broadcast()
-        
-        # === TRANSITION (~3 seconds) ===
-        self.enabled = False
-        self.autonomous = False
-        self.match_time = 0.0
-        self.broadcast()
-        
-        time.sleep(3.0)
+        self._countdown(20.0)
         if not self.running:
             return
-        
-        # === TELEOP START ===
+
+        # Transition (disabled period between auto and teleop)
+        self.enabled = False
+        self.match_time = 0.0
+        self.broadcast()
+        self._wait(3.0)
+        if not self.running:
+            return
+
+        # Teleop (140s: 10s both hubs -> 4x25s alternating -> 30s endgame)
         self.enabled = True
         self.autonomous = False
-        self.match_time = 140.0  # 2:20
-        
-        # Send GSM (only if explicitly provided)
         if first_off:
             self.game_specific_message = first_off
-        self.broadcast()
-        
-        for _ in range(int(10 / tick)):
-            if not self.running:
-                return
-            time.sleep(tick)
-            self.match_time -= tick
-            if self.match_time <= 130:
-                self.match_time = 130.0
-                self.broadcast()
-                break
-            self.broadcast()
+        self._countdown(140.0)
+        if not self.running:
+            return
 
-        # === ALTERNATING PERIODS (4x 25 seconds = 100 seconds) ===
-        for period in range(4):
-            if not self.running:
-                return
-            
-            for _ in range(int(25 / tick)):
-                if not self.running:
-                    return
-                time.sleep(tick)
-                self.match_time -= tick
-                # Check if we've reached the next phase boundary
-                if self.match_time <= 30 or (period == 3 and self.match_time <= 30):
-                    break
-                self.broadcast()
-        
-        # === ENDGAME (30 seconds) ===
-        # Still in teleop mode, just final 30 seconds
-        self.broadcast()
-        
-        for _ in range(int(30 / tick)):
-            if not self.running:
-                return
-            time.sleep(tick)
-            self.match_time -= tick
-            if self.match_time <= 0:
-                self.match_time = 0.0
-                self.broadcast()
-                break
-            self.broadcast()
-        
-        # === MATCH END ===
+        # Match end
         self.enabled = False
-        self.autonomous = False
         self.match_time = 0.0
         self.broadcast()
 
 
-# Control interface for the mock
 def run_control_loop(mock: MockFMS):
-    """Simple CLI control for the mock FMS."""
-    import time
-    time.sleep(0.5)  # Wait for other startup messages
-    
-    print("\n========== Mock FMS Control Panel ==========")
-    print("Commands:")
+    """CLI control for the mock FMS."""
+    time.sleep(0.5)
+
+    print("\n========== Mock FMS Control ==========")
     print("  c        - Connect DS")
     print("  d        - Disconnect DS")
     print("  r        - Set Red Alliance")
     print("  b        - Set Blue Alliance")
-    print("  s [b|r]  - Start match (b=blue off first, r=red off first, omit=no GSM)")
+    print("  s [b|r|\"\"]  - Start match)")
     print("  x        - Stop match")
     print("  e <name> - Set event name")
     print("  m <num>  - Set match number")
-    print("  t <num>  - Set match type")
     print("  q        - Quit")
-    print("============================================\n")
-    
+    print("======================================\n")
+
     while True:
         try:
             cmd = input("> ").strip()
             if not cmd:
                 continue
-            
-            if cmd == "c":
+
+            parts = cmd.split(maxsplit=1)
+            key = parts[0]
+            arg = parts[1].strip() if len(parts) > 1 else ""
+
+            if key == "c":
                 mock.connect_ds()
                 print("DS Connected")
-            elif cmd == "d":
+            elif key == "d":
                 mock.disconnect_ds()
                 print("DS Disconnected")
-            elif cmd == "r":
+            elif key == "r":
                 mock.set_alliance(True)
-                print("Set to Red Alliance")
-            elif cmd == "b":
+                print("Red Alliance")
+            elif key == "b":
                 mock.set_alliance(False)
-                print("Set to Blue Alliance")
-            elif cmd.startswith("s"):
-                parts = cmd.split()
-                first_off = parts[1] if len(parts) > 1 else ""
-                mock.start_match(first_off)
-                if first_off:
-                    print(f"Match started ({first_off} hub off first)")
-                else:
-                    print("Match started (no GSM - use override buttons)")
-            elif cmd == "x":
+                print("Blue Alliance")
+            elif key == "s":
+                mock.start_match(arg)
+                print("Match started" + (f" ({arg} off first)" if arg else " (no GSM)"))
+            elif key == "x":
                 mock.stop_match()
                 print("Match stopped")
-            elif cmd.startswith("e "):
-                name = cmd[2:].strip()
-                mock.set_event(name)
-                print(f"Event: {name}")
-            elif cmd.startswith("m "):
-                num = int(cmd[2:].strip())
-                mock.set_match_number(num)
-                print(f"Match: {num}")
-            elif cmd.startswith("t "):
-                num = int(cmd[2:].strip())
-                mock.set_match_type(num)
-                print(f"Match: {num}")
-            elif cmd == "q":
+            elif key == "e" and arg:
+                mock.set_event(arg)
+                print(f"Event: {arg}")
+            elif key == "m" and arg:
+                mock.set_match_number(int(arg))
+                print(f"Match #{arg}")
+            elif key == "q":
                 break
             else:
                 print("Unknown command")

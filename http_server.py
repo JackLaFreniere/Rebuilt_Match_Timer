@@ -1,7 +1,8 @@
 import asyncio
-from http.server import HTTPServer, SimpleHTTPRequestHandler
 import os
 import webbrowser
+
+from http.server import HTTPServer, SimpleHTTPRequestHandler
 
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 PORT = 8000

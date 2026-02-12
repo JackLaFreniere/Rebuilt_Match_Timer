@@ -1,18 +1,17 @@
 import asyncio
 import json
+
 from websockets import serve
 
 connected_clients = set()
 last_state = {}
-gsm_override = None  # Manual GSM override: 'b', 'r', or None
+gsm_override = None
 
-
-def _state_with_override(data):
+def _state_with_override(data: dict):
     """Return a copy of data with override field attached."""
     out = data.copy()
     out['GSMOverride'] = gsm_override
     return out
-
 
 async def _broadcast_current():
     """Send current state (with override) to all connected clients."""
@@ -27,7 +26,6 @@ async def _broadcast_current():
         except Exception:
             dead.add(client)
     connected_clients -= dead
-
 
 async def handler(websocket):
     global gsm_override, connected_clients
@@ -60,7 +58,6 @@ async def handler(websocket):
         pass
     finally:
         connected_clients.discard(websocket)
-
 
 async def broadcast(data):
     global last_state
