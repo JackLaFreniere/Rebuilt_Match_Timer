@@ -13,16 +13,23 @@ let lastRawData = null;
 let lastReceiveTime = 0;
 let lastRawMatchTime = null;  // Track the raw integer value for re-anchoring
 
-// GSM Override — send to server
-function sendGSMOverride(value) {
-    if (ws.readyState !== WebSocket.OPEN) return;
-    ws.send(JSON.stringify({ type: 'gsm_override', value }));
+// GSM Override — managed locally in the browser
+function setGSMOverride(value) {
+    if (value === 'r' || value === 'b') {
+        gameState.gsmOverride = value;
+        const color = value === 'b' ? 'blue' : 'red';
+        console.log(`[JS] GSM Override set to '${value}' (${color} off first)`);
+    } else {
+        gameState.gsmOverride = null;
+        console.log('[JS] GSM Override cleared');
+    }
+    renderInterpolated();
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('gsm-red-btn').addEventListener('click', () => sendGSMOverride('r'));
-    document.getElementById('gsm-blue-btn').addEventListener('click', () => sendGSMOverride('b'));
-    document.getElementById('gsm-clear-btn').addEventListener('click', () => sendGSMOverride('clear'));
+    document.getElementById('gsm-red-btn').addEventListener('click', () => setGSMOverride('r'));
+    document.getElementById('gsm-blue-btn').addEventListener('click', () => setGSMOverride('b'));
+    document.getElementById('gsm-clear-btn').addEventListener('click', () => setGSMOverride('clear'));
 });
 
 // Elements
@@ -74,7 +81,6 @@ function computePhaseAndHubs(rawData) {
     const autonomous = rawData.Autonomous || false;
     const matchTime = rawData.MatchTime || 0.0;
     const gsm = rawData.GameSpecificMessage || "";
-    const gsmOverride = rawData.GSMOverride || null;
     
     // Handle GSM locking - lock in the value once we get it during the match
     if (gsm && (gsm === "b" || gsm === "r")) {
@@ -83,9 +89,6 @@ function computePhaseAndHubs(rawData) {
         }
         gameState.gsmLocked = gsm;
     }
-    
-    // Track override state from server
-    gameState.gsmOverride = gsmOverride;
     
     let phase;
     let blueHubActive = false;
