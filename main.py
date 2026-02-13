@@ -17,7 +17,7 @@ async def queue_processor():
     while True:
         try:
             data = data_queue.get_nowait()
-            await broadcast(data)
+            broadcast(data)
         except queue.Empty:
             pass
         await asyncio.sleep(0.01)

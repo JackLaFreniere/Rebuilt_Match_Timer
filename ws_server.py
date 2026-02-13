@@ -1,45 +1,48 @@
 import asyncio
 import json
 
+import websockets
 from websockets import serve
 
-connected_clients = set()
+_server = None
 last_state = {}
 
-async def _broadcast_current():
-    """Send current state to all connected clients."""
-    global connected_clients
-    if not last_state or not connected_clients:
-        return
-    message = json.dumps(last_state)
-    dead = set()
-    for client in connected_clients:
-        try:
-            await client.send(message)
-        except Exception:
-            dead.add(client)
-    connected_clients -= dead
-
 async def handler(websocket):
-    """One-way handler: sends state to client, no incoming messages expected."""
-    global connected_clients
-    connected_clients.add(websocket)
-
+    """One-way: send current state then wait for disconnect."""
     if last_state:
-        await websocket.send(json.dumps(last_state))
-
+        try:
+            await websocket.send(json.dumps(last_state))
+        except Exception:
+            return
     try:
         await websocket.wait_closed()
-    finally:
-        connected_clients.discard(websocket)
+    except Exception:
+        pass
 
-async def broadcast(data):
+def broadcast(data):
+    """Broadcast data to all connected clients (non-blocking)."""
     global last_state
     last_state = data
-    await _broadcast_current()
+    if _server is None:
+        return
+    clients = _server.connections
+    if not clients:
+        return
+    try:
+        websockets.broadcast(clients, json.dumps(data))
+    except Exception as e:
+        print(f"[WS] Broadcast error: {e}")
 
 async def run_websocket_server():
-    async with serve(handler, "127.0.0.1", 8765):
+    global _server
+    async with serve(
+        handler,
+        "127.0.0.1",
+        8765,
+        ping_interval=5,
+        ping_timeout=10,
+        close_timeout=2,
+    ) as server:
+        _server = server
         print("[WS] Listening on ws://localhost:8765")
-        while True:
-            await asyncio.sleep(1)
+        await asyncio.Future()  # run forever

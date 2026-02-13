@@ -1,4 +1,74 @@
-const ws = new WebSocket("ws://127.0.0.1:8765");
+let ws = null;
+let reconnectTimer = null;
+
+function connectWebSocket() {
+    // Clear any pending reconnect
+    if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+    }
+
+    // Close existing socket if any
+    if (ws) {
+        ws.onopen = null;
+        ws.onmessage = null;
+        ws.onclose = null;
+        ws.onerror = null;
+        try { ws.close(); } catch (e) {}
+        ws = null;
+    }
+
+    try {
+        ws = new WebSocket("ws://127.0.0.1:8765");
+    } catch (e) {
+        console.log("WebSocket creation failed, retrying in 1s...");
+        scheduleReconnect();
+        return;
+    }
+
+    ws.onopen = () => {
+        wsStatusEl.classList.remove("disconnected");
+        wsStatusEl.classList.add("connected");
+        console.log("WebSocket connected");
+    };
+
+    ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        const now = performance.now();
+        const rawMT = data.MatchTime || 0;
+
+        if (rawMT !== lastRawMatchTime) {
+            lastRawMatchTime = rawMT;
+            lastReceiveTime = now;
+        }
+
+        lastRawData = data;
+        renderInterpolated();
+    };
+
+    ws.onclose = () => {
+        wsStatusEl.classList.remove("connected");
+        wsStatusEl.classList.add("disconnected");
+        console.log("WebSocket disconnected, reconnecting in 1s...");
+
+        updateDisplay({
+            phase: "disconnected",
+            DSAttatched: false
+        });
+
+        scheduleReconnect();
+    };
+
+    ws.onerror = () => {
+        // onclose will fire after this — reconnect is handled there
+    };
+}
+
+function scheduleReconnect() {
+    if (!reconnectTimer) {
+        reconnectTimer = setTimeout(connectWebSocket, 1000);
+    }
+}
 
 // Game state tracker - moved from Python backend
 let gameState = {
@@ -26,11 +96,10 @@ function setGSMOverride(value) {
     renderInterpolated();
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('gsm-red-btn').addEventListener('click', () => setGSMOverride('r'));
-    document.getElementById('gsm-blue-btn').addEventListener('click', () => setGSMOverride('b'));
-    document.getElementById('gsm-clear-btn').addEventListener('click', () => setGSMOverride('clear'));
-});
+// Attach GSM buttons directly — DOM is already parsed since script is at end of body
+document.getElementById('gsm-red-btn').addEventListener('click', () => setGSMOverride('r'));
+document.getElementById('gsm-blue-btn').addEventListener('click', () => setGSMOverride('b'));
+document.getElementById('gsm-clear-btn').addEventListener('click', () => setGSMOverride('clear'));
 
 // Elements
 const eventNameEl = document.getElementById("event-name");
@@ -44,6 +113,9 @@ const nextPhaseEl = document.getElementById("next-phase");
 const hubFillEl = document.getElementById("hub-fill");
 const hubGrayEl = document.getElementById("hub-gray");
 const nextHubIndicatorEl = document.getElementById("next-hub-indicator");
+const gsmValueEl = document.getElementById("gsm-value");
+const gsmRedBtnEl = document.getElementById("gsm-red-btn");
+const gsmBlueBtnEl = document.getElementById("gsm-blue-btn");
 const bodyEl = document.body;
 
 // Match type names
@@ -100,6 +172,7 @@ function computePhaseAndHubs(rawData) {
         gameState.sawAuto = false;
         gameState.sawTeleop = false;
         gameState.gsmLocked = ""; // Reset GSM on disconnect
+        gameState._loggedFallback = false;
     } else if (!enabled) {
         if (gameState.sawTeleop) {
             phase = "match_end";
@@ -149,7 +222,10 @@ function computePhaseAndHubs(rawData) {
                 // Fallback: Use alliance color - your alliance turns off first
                 const isRedAlliance = rawData.isRedAlliance !== false; // Default true
                 blueOffFirst = !isRedAlliance;
-                console.log(`[WARNING] No GameSpecificMessage available, using alliance fallback: ${blueOffFirst ? 'blue' : 'red'} off first`);
+                if (!gameState._loggedFallback) {
+                    console.log(`[WARNING] No GameSpecificMessage available, using alliance fallback: ${blueOffFirst ? 'blue' : 'red'} off first`);
+                    gameState._loggedFallback = true;
+                }
             }
             
             if (period % 2 === 0) {
@@ -422,75 +498,31 @@ function updateHubDisplay(data, phaseInfo) {
 }
 
 function updateGSMDisplay(data) {
-    const el = document.getElementById('gsm-value');
-    const redBtn = document.getElementById('gsm-red-btn');
-    const blueBtn = document.getElementById('gsm-blue-btn');
-    if (!el) return;
-    
     const override = data.GSMOverride;
     const locked = gameState.gsmLocked;
     const effective = override || locked;
     
     // Show effective value
     if (effective === 'r') {
-        el.textContent = 'R';
-        el.className = 'gsm-value red';
+        gsmValueEl.textContent = 'R';
+        gsmValueEl.className = 'gsm-value red';
     } else if (effective === 'b') {
-        el.textContent = 'B';
-        el.className = 'gsm-value blue';
+        gsmValueEl.textContent = 'B';
+        gsmValueEl.className = 'gsm-value blue';
     } else {
-        el.textContent = '---';
-        el.className = 'gsm-value';
+        gsmValueEl.textContent = '---';
+        gsmValueEl.className = 'gsm-value';
     }
     
     // Add override indicator
     if (override) {
-        el.classList.add('overridden');
+        gsmValueEl.classList.add('overridden');
     }
     
     // Highlight active button
-    redBtn.classList.toggle('active', override === 'r');
-    blueBtn.classList.toggle('active', override === 'b');
+    gsmRedBtnEl.classList.toggle('active', override === 'r');
+    gsmBlueBtnEl.classList.toggle('active', override === 'b');
 }
-
-// WebSocket handlers
-ws.onopen = () => {
-    wsStatusEl.classList.remove("disconnected");
-    wsStatusEl.classList.add("connected");
-    console.log("WebSocket connected");
-};
-
-ws.onmessage = (event) => {
-    const data = JSON.parse(event.data);
-    const now = performance.now();
-    const rawMT = data.MatchTime || 0;
-
-    // Re-anchor interpolation when we get a new integer step or non-time fields change
-    if (rawMT !== lastRawMatchTime) {
-        lastRawMatchTime = rawMT;
-        lastReceiveTime = now;
-    }
-
-    lastRawData = data;
-    // Immediate render (interpolation loop also runs)
-    renderInterpolated();
-};
-
-ws.onclose = () => {
-    wsStatusEl.classList.remove("connected");
-    wsStatusEl.classList.add("disconnected");
-    console.log("WebSocket disconnected");
-    
-    // Show disconnected state
-    updateDisplay({
-        phase: "disconnected",
-        DSAttatched: false
-    });
-};
-
-ws.onerror = (error) => {
-    console.log("WebSocket error:", error);
-};
 
 // Interpolation render loop
 function renderInterpolated() {
@@ -515,3 +547,6 @@ function animationLoop() {
     requestAnimationFrame(animationLoop);
 }
 requestAnimationFrame(animationLoop);
+
+// Start WebSocket connection
+connectWebSocket();
