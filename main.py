@@ -39,6 +39,6 @@ async def main():
     )
 
 if __name__ == "__main__":
-    TEAM_NUMBER = sys.argv[1]
+    TEAM_NUMBER = int(sys.argv[1])
     print(f"FRC 2026 Hub Timer - Team {TEAM_NUMBER}\n")
     asyncio.run(main())
