@@ -1,3 +1,3 @@
 @echo off
 cd ..
-python main.py --mock
+python main.py 930 --mock

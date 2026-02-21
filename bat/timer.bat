@@ -1,3 +1,3 @@
 @echo off
 cd ..
-python main.py
+python main.py 930

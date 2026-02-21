@@ -6,8 +6,6 @@ import sys
 from ws_server import run_websocket_server, broadcast
 from http_server import run_http_server
 
-TEAM_NUMBER = 930
-
 data_queue = queue.Queue()
 
 def on_update(data):
@@ -41,5 +39,6 @@ async def main():
     )
 
 if __name__ == "__main__":
+    TEAM_NUMBER = sys.argv[1]
     print(f"FRC 2026 Hub Timer - Team {TEAM_NUMBER}\n")
     asyncio.run(main())
